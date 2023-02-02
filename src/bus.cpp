@@ -43,6 +43,22 @@ Bus::Bus(std::string file_name)
 	ram_bank_0 = ram[0];
 }
 
+void Bus::Dump()
+{
+	std::ofstream file("ram.dump");
+
+	for (int i = 0; i < 0x4000; i++)
+	{
+		file << (char)ram[0][i];
+	}
+	for (int i = 0; i < 0x4000; i++)
+	{
+		file << (char)ram[1][i];
+	}
+
+	file.close();
+}
+
 void Bus::remap_flash()
 {
 	read_flash = flash[0];
@@ -82,33 +98,6 @@ void Bus::write8(uint16_t addr, uint8_t data)
 {
 	if (addr <= 0x3FFF)
 	{
-		*(uint16_t*)&read_flash[addr] = data;
-		return;
-	}
-	else if (addr >= 0x4000 && addr <= 0x7FFF)
-	{
-		*(uint16_t*)&read_membank_a[addr - 0x4000] = data;
-		return;
-	}
-	else if (addr >= 0x8000 && addr <= 0xBFFF)
-	{
-		*(uint16_t*)&read_membank_b[addr - 0x8000] = data;
-		return;
-	}
-	else if (addr >= 0xC000 && addr <= 0xFFFF)
-	{
-		*(uint16_t*)&ram_bank_0[addr - 0xC000] = data;
-		return;
-	}
-
-	printf("How?\n");
-	exit(1);
-}
-
-void Bus::write16(uint16_t addr, uint16_t data)
-{
-	if (addr <= 0x3FFF)
-	{
 		read_flash[addr] = data;
 		return;
 	}
@@ -132,6 +121,33 @@ void Bus::write16(uint16_t addr, uint16_t data)
 	exit(1);
 }
 
+void Bus::write16(uint16_t addr, uint16_t data)
+{
+	if (addr <= 0x3FFF)
+	{
+		*(uint16_t*)&read_flash[addr] = data;
+		return;
+	}
+	else if (addr >= 0x4000 && addr <= 0x7FFF)
+	{
+		*(uint16_t*)&read_membank_a[addr - 0x4000] = data;
+		return;
+	}
+	else if (addr >= 0x8000 && addr <= 0xBFFF)
+	{
+		*(uint16_t*)&read_membank_b[addr - 0x8000] = data;
+		return;
+	}
+	else if (addr >= 0xC000 && addr <= 0xFFFF)
+	{
+		*(uint16_t*)&ram_bank_0[addr - 0xC000] = data;
+		return;
+	}
+
+	printf("How?\n");
+	exit(1);
+}
+
 void Bus::write8_io(uint8_t addr, uint8_t data)
 {
 	switch (addr)
@@ -148,40 +164,123 @@ void Bus::write8_io(uint8_t addr, uint8_t data)
 	case 0x04:
 		if (data & 1)
 		{
-			printf("[emu/Bus]: Unhandled map mode 1\n");
-			exit(1);
+			memory_map_mode = 1;
+			write8_io(0x06, membank_a_val);
+			write8_io(0x07, membank_b_val);
 		}
+		else
+		{
+			memory_map_mode = 0;
+			ram_bank_0 = ram[0];
+			write8_io(0x06, membank_a_val);
+			write8_io(0x07, membank_b_val);
+		}
+		break;
+	case 0x05:
+		port_02 |= (data & 7) << 3;
 		break;
 	case 0x06:
 	{
-		bool is_ram = (data >> 6) & 1;
+		membank_a_val = data;
 
-		uint8_t flash_bank = data & 0x1F;
-		bool ram_bank = data & 1;
+		if (memory_map_mode == 0)
+		{
+			bool is_ram = (data >> 6) & 1;
 
-		if (is_ram)
-			read_membank_a = ram[ram_bank];
+			uint8_t flash_bank = data & 0x1F;
+			bool ram_bank = data & 1;
+
+			if (is_ram)
+				read_membank_a = ram[ram_bank];
+			else
+				read_membank_a = flash[flash_bank];
+		}
 		else
-			read_membank_a = flash[flash_bank];
-		
+		{
+			bool is_ram = (data >> 6) & 1;
+
+			uint8_t flash_bank = data & 0x1F;
+			bool ram_bank = data & 1;
+
+			if (is_ram)
+			{
+				read_membank_a = ram[ram_bank & 0x3FE];
+				read_membank_b = ram[ram_bank];
+			}
+			else
+			{
+				read_membank_a = flash[flash_bank & 0x3FE];
+				read_membank_b = flash[flash_bank];
+			}
+		}
 		break;
 	}
 	case 0x07:
 	{
+		membank_b_val = data;
+
 		bool is_ram = (data >> 6) & 1;
 
 		uint8_t flash_bank = data & 0x1F;
 		bool ram_bank = data & 1;
 
-		if (is_ram)
-			read_membank_b = ram[ram_bank];
+		if (memory_map_mode == 0)
+		{
+			if (is_ram)
+				read_membank_b = ram[ram_bank];
+			else
+				read_membank_b = flash[flash_bank];
+		}
 		else
-			read_membank_b = flash[flash_bank];
+		{
+			if (is_ram)
+				ram_bank_0 = ram[ram_bank];
+			else
+				ram_bank_0 = flash[flash_bank];
+		}
 		
 		break;
 	}
+	case 0x10:
+		switch (data)
+		{
+		case 0x01:
+			disp_stat |= (1 << 6);
+			printf("[emu/LCDC]: Enter 8-bit mode\n");
+			break;
+		case 0x05:
+			disp_stat |= 1;
+			printf("[emu/LCDC]: Setting X-autoincrement mode\n");
+			break;
+		case 0x18:
+			printf("[emu/LCDC]: Exit test mode\n");
+			break;
+		case 0xC0 ... 0xFF:
+			printf("[emu/LCDC]: Set contrast to 0x%02x\n", data);
+			disp_contrast = data;
+			break;
+		default:
+			printf("[emu/LCDC]: Unknown command 0x%02x\n", data);
+			exit(1);
+		}
+		break;
+	case 0x14:
+		flash_unlocked = data & 1;
+		if (flash_unlocked)
+		{
+			port_02 |= (1 << 2);
+			printf("[emu/Bus]: Flash unlocked\n");
+		}
+		else
+		{
+			port_02 &= ~(1 << 2);
+			printf("[emu/Bus]: Flash locked\n");
+		}
+		break;
+	case 0x16:
+		break;
 	default:
-		printf("[emu/Bus]: Write8_io to unknown address 0x%02x\n", addr);
+		printf("[emu/Bus]: Write8_io 0x%02x to unknown address 0x%02x\n", data, addr);
 		exit(1);
 	}
 }
@@ -190,8 +289,10 @@ uint8_t Bus::read8_io(uint8_t addr)
 {
 	switch (addr)
 	{
+	case 0x02:
+		return port_02;
 	case 0x10:
-		
+		return disp_stat;
 	default:
 		printf("[emu/Bus]: Read8_io to unknown address 0x%02x\n", addr);
 		exit(1);

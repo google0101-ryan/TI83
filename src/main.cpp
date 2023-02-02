@@ -4,6 +4,20 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <csignal>
+
+Bus* bus;
+
+void Dump()
+{
+	bus->Dump();
+}
+
+void sig(int)
+{
+	Dump();
+	exit(1);
+}
 
 int main(int argc, char** argv)
 {
@@ -13,7 +27,10 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	Bus* bus = new Bus(argv[1]);
+	bus = new Bus(argv[1]);
+
+	std::atexit(Dump);
+	std::signal(SIGINT, sig);
 
 	CPU* cpu = new CPU(bus);
 

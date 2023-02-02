@@ -12,6 +12,17 @@ private:
 
 	uint8_t keys_pressed = 0xff;
 	uint8_t interrupt_mask = 0;
+
+	uint8_t disp_stat = 0;
+	uint8_t disp_contrast = 0;
+	uint8_t port_02 = 1;
+
+	uint8_t membank_a_val = 0;
+	uint8_t membank_b_val = 0;
+
+	int memory_map_mode = 0;
+
+	bool flash_unlocked = false;
 	
 	uint8_t* read_flash; // The current flash bank for 0000h - 3FFFh
 	uint8_t* read_membank_a; // The current flash/ram bank for 4000h - 7FFFh
@@ -19,6 +30,8 @@ private:
 	uint8_t* ram_bank_0; // RAM bank 0 is permanently mapped at C000h - FFFFh
 public:
 	Bus(std::string file_name);
+
+	void Dump();
 
 	void remap_flash();
 
