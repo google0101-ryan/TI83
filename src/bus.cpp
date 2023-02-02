@@ -185,3 +185,15 @@ void Bus::write8_io(uint8_t addr, uint8_t data)
 		exit(1);
 	}
 }
+
+uint8_t Bus::read8_io(uint8_t addr)
+{
+	switch (addr)
+	{
+	case 0x10:
+		
+	default:
+		printf("[emu/Bus]: Read8_io to unknown address 0x%02x\n", addr);
+		exit(1);
+	}
+}

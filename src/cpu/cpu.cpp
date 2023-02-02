@@ -13,6 +13,17 @@ uint16_t CPU::ReadImm16(uint16_t &addr)
 	return data;
 }
 
+void CPU::in_c()
+{
+	uint8_t data = bus->read8_io(c);
+
+	SetFlag(N_FLAG, false);
+	SetFlag(P_FLAG, false);
+	SetFlag(H_FLAG, false);
+	SetFlag(Z_FLAG, data == 0);
+	SetFlag(S_FLAG, data & (1 << 7));
+}
+
 CPU::CPU(Bus *bus)
 	: bus(bus)
 {
@@ -71,6 +82,20 @@ void CPU::clock()
 	case 0xe5:
 		push_hl();
 		break;
+	case 0xed:
+	{
+		opcode = ReadImm8(pc);
+		switch (opcode)
+		{
+		case 0x70:
+			in_c();
+			break;
+		default:
+			printf("[emu/CPU]: Unknown misc. opcode 0xed 0x%02x\n", opcode);
+			Dump();
+			exit(1);
+		}
+	}
 	case 0xf9:
 		ld_sp_hl();
 		break;

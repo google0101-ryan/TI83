@@ -86,6 +86,9 @@ private:
 	void push_hl(); // 0xe5
 	void di(); // 0xf3
 	void ld_sp_hl(); // 0xf9
+
+	// 0xed
+	void in_c(); // 0x70
 public:
 	CPU(Bus* bus);
 	void Dump();

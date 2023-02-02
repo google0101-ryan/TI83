@@ -29,4 +29,6 @@ public:
 	void write16(uint16_t addr, uint16_t data);
 
 	void write8_io(uint8_t addr, uint8_t data);
+
+	uint8_t read8_io(uint8_t addr);
 };
